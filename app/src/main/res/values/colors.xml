@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="hud_background">#FF05090B</color>
+    <color name="neon_yellow">#FFF0FF00</color>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Cyber-Alarm</string>
+    <string name="accessibility_label">Cyber-Alarm Enforcer</string>
+    <string name="accessibility_description">Keeps the ringing alarm on screen until its challenge is solved (closes the power menu and brings the alarm back if you leave it), and shows the block screen when you open an app you chose to lock after waking up. Cyber-Alarm does not read, store, or send the contents of your screen.</string>
+</resources>

@@ -4,7 +4,9 @@ import android.content.Context
 import androidx.room.Room
 import com.cyberalarm.data.AlarmDao
 import com.cyberalarm.data.AppDatabase
+import com.cyberalarm.data.CredDao
 import com.cyberalarm.data.LockDao
+import com.cyberalarm.data.WakeDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -27,13 +29,21 @@ object AppModule {
     @Provides
     @Singleton
     fun database(@ApplicationContext context: Context): AppDatabase =
-        Room.databaseBuilder(context, AppDatabase::class.java, "cyber_alarm.db").build()
+        Room.databaseBuilder(context, AppDatabase::class.java, "cyber_alarm.db")
+            .addMigrations(*AppDatabase.ALL_MIGRATIONS)
+            .build()
 
     @Provides
     fun alarmDao(db: AppDatabase): AlarmDao = db.alarmDao()
 
     @Provides
     fun lockDao(db: AppDatabase): LockDao = db.lockDao()
+
+    @Provides
+    fun wakeDao(db: AppDatabase): WakeDao = db.wakeDao()
+
+    @Provides
+    fun credDao(db: AppDatabase): CredDao = db.credDao()
 
     @Provides
     @Singleton

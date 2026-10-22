@@ -20,13 +20,43 @@ class RingingStateStore @Inject constructor(@ApplicationContext context: Context
 
     fun isRinging(): Boolean = activeAlarmId() != null
 
-    fun markRinging(alarmId: Long) = prefs.edit(commit = true) {
+    /** [escalation] 0 = normal; each failed awake check re-fires one level higher. */
+    fun markRinging(alarmId: Long, escalation: Int = escalation()) = prefs.edit(commit = true) {
         putLong(KEY_ACTIVE, alarmId)
         putLong(KEY_STARTED, System.currentTimeMillis())
+        putInt(KEY_ESCALATION, escalation)
         remove(KEY_SNOOZE_UNTIL)
+        remove(KEY_SILENCE_UNTIL).remove(KEY_SILENCE_USED)
     }
 
-    fun clearRinging() = prefs.edit(commit = true) { remove(KEY_ACTIVE).remove(KEY_STARTED) }
+    fun clearRinging() = prefs.edit(commit = true) {
+        remove(KEY_ACTIVE).remove(KEY_STARTED).remove(KEY_SILENCE_UNTIL).remove(KEY_SILENCE_USED)
+    }
+
+    fun startedAt(): Long? = prefs.getLong(KEY_STARTED, 0).takeIf { it > 0 }
+
+    fun escalation(): Int = prefs.getInt(KEY_ESCALATION, 0)
+
+    /** The current wake session (survives dismissal so awake checks can be credited to it). */
+    fun sessionId(): Long? = prefs.getLong(KEY_SESSION, NONE).takeIf { it != NONE }
+
+    fun setSessionId(id: Long) = prefs.edit(commit = true) { putLong(KEY_SESSION, id) }
+
+    /**
+     * Jack-in quiet window: sound + vibration pause until [until] while the user walks to their
+     * tag. Allowed once per ring, so it can't be chained into a silent alarm.
+     */
+    fun startSilence(until: Long): Boolean {
+        if (prefs.getBoolean(KEY_SILENCE_USED, false)) return false
+        prefs.edit(commit = true) { putLong(KEY_SILENCE_UNTIL, until).putBoolean(KEY_SILENCE_USED, true) }
+        return true
+    }
+
+    fun silenceUntil(): Long = prefs.getLong(KEY_SILENCE_UNTIL, 0)
+
+    fun silenceUsed(): Boolean = prefs.getBoolean(KEY_SILENCE_USED, false)
+
+    fun isSilenced(now: Long = System.currentTimeMillis()): Boolean = silenceUntil() > now
 
     fun snoozeCount(alarmId: Long): Int =
         if (prefs.getLong(KEY_SNOOZE_ALARM, NONE) == alarmId) prefs.getInt(KEY_SNOOZE_COUNT, 0) else 0
@@ -55,5 +85,9 @@ class RingingStateStore @Inject constructor(@ApplicationContext context: Context
         const val KEY_SNOOZE_ALARM = "snooze_alarm_id"
         const val KEY_SNOOZE_COUNT = "snooze_count"
         const val KEY_SNOOZE_UNTIL = "snooze_until"
+        const val KEY_ESCALATION = "escalation"
+        const val KEY_SESSION = "session_id"
+        const val KEY_SILENCE_UNTIL = "silence_until"
+        const val KEY_SILENCE_USED = "silence_used"
     }
 }

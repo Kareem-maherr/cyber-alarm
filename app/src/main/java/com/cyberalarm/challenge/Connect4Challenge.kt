@@ -57,6 +57,8 @@ private fun Connect4Ui(spec: ChallengeSpec, onPassed: () -> Unit) {
     var lastCell by remember { mutableIntStateOf(-1) }
     val drop = remember { Animatable(1f) }
     val scope = rememberCoroutineScope()
+    val onMistake = LocalChallengeMistake.current
+    val tick = com.cyberalarm.ui.components.rememberTick()
 
     fun play(col: Int, player: Int) {
         lastCell = board.landingRow(col) * COLS + col
@@ -71,7 +73,7 @@ private fun Connect4Ui(spec: ChallengeSpec, onPassed: () -> Unit) {
         when (board.winner()) {
             HUMAN -> {
                 wins++
-                status = "ROUND WON // $wins/${spec.count}"
+                status = "PREEM // ROUND WON $wins/${spec.count}"
                 delay(1_000)
                 if (wins >= spec.count) {
                     onPassed()
@@ -79,7 +81,8 @@ private fun Connect4Ui(spec: ChallengeSpec, onPassed: () -> Unit) {
                 }
             }
             AI -> {
-                status = "SYSTEM WINS // REBOOTING BOARD"
+                onMistake()
+                status = "FLATLINED, CHOOM // REBOOTING BOARD"
                 delay(1_600)
             }
             DRAW -> {
@@ -107,7 +110,7 @@ private fun Connect4Ui(spec: ChallengeSpec, onPassed: () -> Unit) {
 
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(status, style = HudType.small, color = if (status.startsWith("SYSTEM")) Hud.Red else Hud.Cyan, modifier = Modifier.weight(1f))
+            Text(status, style = HudType.small, color = if (status.startsWith("FLATLINED")) Hud.Red else Hud.Cyan, modifier = Modifier.weight(1f))
             Text("DEPTH ${settings.depth}", style = HudType.small, color = Hud.TextDim)
         }
         Spacer(Modifier.height(6.dp))
@@ -122,6 +125,7 @@ private fun Connect4Ui(spec: ChallengeSpec, onPassed: () -> Unit) {
                     detectTapGestures { pos ->
                         val col = (pos.x / (size.width / COLS.toFloat())).toInt().coerceIn(0, COLS - 1)
                         if (turn == HUMAN && board.winner() == EMPTY && board.canDrop(col)) {
+                            tick()
                             play(col, HUMAN)
                             turn = AI
                         }
@@ -139,7 +143,7 @@ private fun Connect4Ui(spec: ChallengeSpec, onPassed: () -> Unit) {
                 val center = Offset(cw * (col + 0.5f), ch * (row + 0.5f))
                 val p = board[row, col]
                 if (p == EMPTY || index == lastCell) {
-                    drawCircle(Hud.Grid, r, center, style = Stroke(1.5.dp.toPx()))
+                    drawCircle(Hud.GreyDim, r, center, style = Stroke(1.5.dp.toPx()))
                 }
                 if (p == EMPTY) continue
                 val drawAt = if (index == lastCell) Offset(center.x, -r + (center.y + r) * drop.value) else center

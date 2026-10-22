@@ -76,7 +76,7 @@ object Connect4Ai {
     fun settingsFor(difficulty: Difficulty) = when (difficulty) {
         Difficulty.EASY -> Settings(depth = 2, randomness = 0.35f)
         Difficulty.MEDIUM -> Settings(depth = 4, randomness = 0.08f)
-        Difficulty.HARD -> Settings(depth = 6, randomness = 0f)
+        Difficulty.HARD, Difficulty.LEGEND -> Settings(depth = 6, randomness = 0f)
     }
 
     fun bestMove(board: Connect4Board, settings: Settings, random: Random = Random.Default): Int {

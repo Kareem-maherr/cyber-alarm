@@ -14,6 +14,8 @@ data class LockWindow(
     val lockedUntil: Long,
     val passUntil: Long = 0,
     val sourceAlarmId: Long = 0,
+    /** When this lock window started; drives the release progress bar. 0 = unknown (pre-v2 rows). */
+    val lockedAt: Long = 0,
 ) {
     fun isLocked(now: Long): Boolean = lockedUntil > now && passUntil <= now
 }

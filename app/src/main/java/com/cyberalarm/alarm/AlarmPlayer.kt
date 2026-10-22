@@ -22,9 +22,10 @@ class AlarmPlayer(private val context: Context, private val scope: CoroutineScop
     private var player: MediaPlayer? = null
     private var rampJob: Job? = null
 
-    fun start(soundKey: String, rampMillis: Long = 30_000) {
+    /** [rampMillis] 0 = full volume immediately; [streamFloor] = minimum alarm-stream volume (0..1). */
+    fun start(soundKey: String, rampMillis: Long = 30_000, streamFloor: Float = 0.8f) {
         stop()
-        boostAlarmStream()
+        boostAlarmStream(streamFloor)
         val candidates = listOfNotNull(
             resolve(context, soundKey),
             builtinUri(context, BuiltinTone.NEON_PULSE),
@@ -40,6 +41,11 @@ class AlarmPlayer(private val context: Context, private val scope: CoroutineScop
             }
         }
         val mp = player ?: return
+        if (rampMillis <= 0) {
+            mp.setVolume(1f, 1f)
+            mp.start()
+            return
+        }
         mp.setVolume(MIN_VOLUME, MIN_VOLUME)
         mp.start()
         rampJob = scope.launch {
@@ -50,6 +56,15 @@ class AlarmPlayer(private val context: Context, private val scope: CoroutineScop
                 runCatching { mp.setVolume(v, v) }
             }
         }
+    }
+
+    /** Jack-in quiet window. The ramp keeps its place and continues on [resume]. */
+    fun pause() {
+        player?.let { runCatching { if (it.isPlaying) it.pause() } }
+    }
+
+    fun resume() {
+        player?.let { runCatching { if (!it.isPlaying) it.start() } }
     }
 
     fun stop() {
@@ -77,11 +92,11 @@ class AlarmPlayer(private val context: Context, private val scope: CoroutineScop
     }
 
     /** Makes sure the alarm stream isn't muted/near-silent. May be refused under DND policies. */
-    private fun boostAlarmStream() {
+    private fun boostAlarmStream(fraction: Float) {
         val am = context.getSystemService(AudioManager::class.java)
         runCatching {
             val max = am.getStreamMaxVolume(AudioManager.STREAM_ALARM)
-            val floor = (max * 0.8f).toInt()
+            val floor = (max * fraction).toInt()
             if (am.getStreamVolume(AudioManager.STREAM_ALARM) < floor) {
                 am.setStreamVolume(AudioManager.STREAM_ALARM, floor, 0)
             }

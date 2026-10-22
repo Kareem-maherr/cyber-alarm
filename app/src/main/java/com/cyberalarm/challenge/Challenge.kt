@@ -16,9 +16,15 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.sp
 import com.cyberalarm.ui.components.HoldToConfirm
+import com.cyberalarm.ui.components.displayStyle
+import com.cyberalarm.ui.theme.HudMotion
 import com.cyberalarm.ui.theme.Hud
 import com.cyberalarm.ui.theme.HudType
 
@@ -34,6 +40,12 @@ interface Challenge {
     fun Content(onPassed: () -> Unit)
 }
 
+/**
+ * Challenges call this on every mistake (wrong answer, failed breach, lost game...). The ringing
+ * screen counts them for the Wake Report; elsewhere it does nothing.
+ */
+val LocalChallengeMistake = staticCompositionLocalOf<() -> Unit> { {} }
+
 object ChallengeFactory {
     fun create(spec: ChallengeSpec): Challenge = when (spec.type) {
         ChallengeType.MATH -> MathChallenge(spec)
@@ -41,6 +53,8 @@ object ChallengeFactory {
         ChallengeType.CONNECT4 -> Connect4Challenge(spec)
         ChallengeType.MEMORY -> MemoryChallenge(spec)
         ChallengeType.STEPS -> StepsChallenge(spec)
+        ChallengeType.BREACH -> BreachChallenge(spec)
+        ChallengeType.JACK_IN -> JackInChallenge(spec)
     }
 }
 
@@ -71,10 +85,15 @@ fun ChallengeRunner(specs: List<ChallengeSpec>, onAllPassed: () -> Unit, modifie
         Spacer(Modifier.height(10.dp))
         Text(
             "CHALLENGE ${index + 1}/${specs.size} // ${spec.type.title}",
-            style = HudType.label.copy(fontSize = HudType.body.fontSize),
+            style = displayStyle(15),
             color = Hud.Yellow,
         )
-        Text("[${spec.difficulty.short}] x${spec.count} // ${spec.type.blurb}", style = HudType.small, color = Hud.TextDim)
+        Text(
+            "[${spec.difficulty.short}] x${spec.count} // ${spec.type.blurb}",
+            style = HudType.micro.copy(letterSpacing = 1.sp),
+            color = Hud.TextDim,
+            modifier = Modifier.padding(top = 4.dp),
+        )
         Spacer(Modifier.height(14.dp))
         key(index) {
             val challenge = remember { ChallengeFactory.create(spec) }
@@ -92,7 +111,8 @@ private fun ChainProgress(done: Int, total: Int) {
                 i == done -> Hud.Cyan
                 else -> Hud.GreyDim
             }
-            Box(Modifier.weight(1f).height(4.dp).background(color))
+            val c by animateColorAsState(color, HudMotion.fade(), label = "chain")
+            Box(Modifier.weight(1f).height(2.dp).background(c))
         }
     }
 }
@@ -102,7 +122,8 @@ private fun ChainProgress(done: Int, total: Int) {
 fun SegmentBar(done: Int, total: Int, modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         repeat(total.coerceAtMost(40)) { i ->
-            Box(Modifier.weight(1f).height(8.dp).background(if (i < done) Hud.Yellow else Hud.GreyDim))
+            val c by animateColorAsState(if (i < done) Hud.Yellow else Hud.Grey.copy(alpha = 0.2f), HudMotion.fade(), label = "seg")
+            Box(Modifier.weight(1f).height(4.dp).background(c))
         }
     }
 }

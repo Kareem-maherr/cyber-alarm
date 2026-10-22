@@ -8,6 +8,7 @@ import android.os.Build
 import android.util.Log
 import com.cyberalarm.MainActivity
 import com.cyberalarm.data.Alarm
+import com.cyberalarm.settings.SettingsStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.ZonedDateTime
 import javax.inject.Inject
@@ -22,9 +23,14 @@ import javax.inject.Singleton
  *  - SNOOZE a snoozed re-fire
  *  - GUARD  a rolling "dead man's switch" kept ~90s ahead while ringing; if our process gets
  *           killed mid-alarm, the guard fires and the alarm resumes.
+ *  - AWAKE  the post-dismissal awake check and its deadline (same request code, different
+ *           actions, so they are distinct PendingIntents). See [AwakeCheckManager].
  */
 @Singleton
-class AlarmScheduler @Inject constructor(@ApplicationContext private val context: Context) {
+class AlarmScheduler @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val settings: SettingsStore,
+) {
 
     private val alarmManager = context.getSystemService(AlarmManager::class.java)
 
@@ -33,7 +39,7 @@ class AlarmScheduler @Inject constructor(@ApplicationContext private val context
             cancel(alarm.id)
             return
         }
-        val at = NextTrigger.compute(alarm, now).toInstant().toEpochMilli()
+        val at = NextTrigger.compute(alarm, now, settings.current.holidayUntil).toInstant().toEpochMilli()
         setClock(at, pending(alarm.id, AlarmReceiver.ACTION_FIRE))
     }
 
@@ -52,6 +58,16 @@ class AlarmScheduler @Inject constructor(@ApplicationContext private val context
         setClock(atMillis, pending(alarmId, AlarmReceiver.ACTION_GUARD))
 
     fun cancelGuard(alarmId: Long) = alarmManager.cancel(pending(alarmId, AlarmReceiver.ACTION_GUARD))
+
+    fun scheduleAwakeCheck(alarmId: Long, atMillis: Long) =
+        setClock(atMillis, pending(alarmId, AlarmReceiver.ACTION_AWAKE_CHECK))
+
+    fun cancelAwakeCheck(alarmId: Long) = alarmManager.cancel(pending(alarmId, AlarmReceiver.ACTION_AWAKE_CHECK))
+
+    fun scheduleAwakeDeadline(alarmId: Long, atMillis: Long) =
+        setClock(atMillis, pending(alarmId, AlarmReceiver.ACTION_AWAKE_DEADLINE))
+
+    fun cancelAwakeDeadline(alarmId: Long) = alarmManager.cancel(pending(alarmId, AlarmReceiver.ACTION_AWAKE_DEADLINE))
 
     fun canScheduleExact(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
@@ -74,7 +90,8 @@ class AlarmScheduler @Inject constructor(@ApplicationContext private val context
         val slot = when (action) {
             AlarmReceiver.ACTION_FIRE -> 0
             AlarmReceiver.ACTION_SNOOZE_FIRE -> 1
-            else -> 2
+            AlarmReceiver.ACTION_GUARD -> 2
+            else -> 3
         }
         val intent = Intent(context, AlarmReceiver::class.java)
             .setAction(action)

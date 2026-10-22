@@ -2,7 +2,7 @@ package com.cyberalarm.challenge
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import com.cyberalarm.ui.components.hapticClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -57,7 +57,7 @@ object MixMatchGenerator {
     fun pairsFor(difficulty: Difficulty) = when (difficulty) {
         Difficulty.EASY -> 4
         Difficulty.MEDIUM -> 5
-        Difficulty.HARD -> 6
+        Difficulty.HARD, Difficulty.LEGEND -> 6
     }
 
     fun round(difficulty: Difficulty, random: Random = Random.Default): MatchRound {
@@ -67,7 +67,7 @@ object MixMatchGenerator {
                 val picked = colors.shuffled(random).take(n)
                 // HARD: Stroop effect, the word is printed in a *different* color.
                 val left = picked.mapIndexed { i, (name, _) ->
-                    val ink = if (difficulty == Difficulty.HARD) picked[(i + 1) % n].second else Hud.Text
+                    val ink = if (difficulty >= Difficulty.HARD) picked[(i + 1) % n].second else Hud.Text
                     MatchItem(i, text = name, ink = ink)
                 }
                 Triple("COLOR // WORD", left, picked.mapIndexed { i, (_, c) -> MatchItem(i, swatch = c) })
@@ -95,7 +95,7 @@ object MixMatchGenerator {
     fun allowedMistakes(difficulty: Difficulty) = when (difficulty) {
         Difficulty.EASY -> Int.MAX_VALUE
         Difficulty.MEDIUM -> 3
-        Difficulty.HARD -> 1
+        Difficulty.HARD, Difficulty.LEGEND -> 1
     }
 }
 
@@ -115,6 +115,7 @@ private fun MixMatchUi(spec: ChallengeSpec, onPassed: () -> Unit) {
     var mistakes by remember { mutableIntStateOf(0) }
     var message by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
+    val onMistake = LocalChallengeMistake.current
     val allowed = MixMatchGenerator.allowedMistakes(spec.difficulty)
 
     fun newRound() {
@@ -131,13 +132,14 @@ private fun MixMatchUi(spec: ChallengeSpec, onPassed: () -> Unit) {
             if (matched.size == round.left.size) {
                 roundsDone++
                 if (roundsDone >= spec.count) onPassed() else {
-                    message = "ROUND CLEAR"
+                    message = "NOVA // ROUND CLEAR"
                     newRound()
                 }
             }
         } else {
             wrong = true
             mistakes++
+            onMistake()
             scope.launch {
                 delay(380)
                 wrong = false
@@ -201,7 +203,7 @@ private fun MatchTile(item: MatchItem, selected: Boolean, matched: Boolean, wron
                     neonStroke(path, color, 1.3.dp.toPx(), glow = selected || wrong)
                 }
             }
-            .clickable(remember { MutableInteractionSource() }, null, onClick = onClick),
+            .hapticClickable(remember { MutableInteractionSource() }, null, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         when {

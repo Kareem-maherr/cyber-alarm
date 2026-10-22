@@ -44,7 +44,7 @@ class StepsChallenge(override val spec: ChallengeSpec) : Challenge {
         fun target(spec: ChallengeSpec): Int = spec.count * when (spec.difficulty) {
             Difficulty.EASY -> 20
             Difficulty.MEDIUM -> 40
-            Difficulty.HARD -> 80
+            Difficulty.HARD, Difficulty.LEGEND -> 80
         }
     }
 }
@@ -114,7 +114,7 @@ private fun StepsUi(spec: ChallengeSpec, onPassed: () -> Unit) {
         SegmentBar((steps * 20 / target).coerceAtMost(20), 20)
         Spacer(Modifier.height(14.dp))
         Text(
-            "GET OUT OF BED. KEEP THE PHONE IN HAND AND WALK.",
+            "DELTA OUTTA BED, CHOOM. KEEP THE PHONE IN HAND AND WALK.",
             style = HudType.body,
             color = Hud.Text,
         )

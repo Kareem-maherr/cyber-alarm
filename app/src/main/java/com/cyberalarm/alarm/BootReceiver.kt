@@ -25,6 +25,8 @@ class BootReceiver : BroadcastReceiver() {
     @Inject lateinit var store: RingingStateStore
     @Inject lateinit var controller: AlarmController
     @Inject lateinit var lockManager: LockManager
+    @Inject lateinit var awake: AwakeCheckManager
+    @Inject lateinit var sync: ScheduleSync
 
     override fun onReceive(context: Context, intent: Intent) {
         val isBoot = intent.action in BOOT_ACTIONS
@@ -32,6 +34,7 @@ class BootReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 scheduler.rescheduleAll(repo.getAll())
+                runCatching { sync.refresh() }
 
                 store.pendingSnooze()?.let { (id, until) ->
                     if (until > System.currentTimeMillis()) scheduler.scheduleSnooze(id, until)
@@ -41,6 +44,8 @@ class BootReceiver : BroadcastReceiver() {
                 // Foreground-service starts are only allowed from the boot/package-replaced
                 // broadcasts, not from TIME_SET & co., hence the guard + runCatching.
                 if (isBoot) {
+                    // Rebooting during an awake check doesn't dodge it: a missed deadline rings.
+                    awake.restoreAfterBoot()?.let { id -> if (!store.isRinging()) controller.reRing(id) }
                     store.activeAlarmId()?.let { id ->
                         runCatching { AlarmService.start(context, id) }
                             .onFailure { Log.w(TAG, "Could not resume ringing alarm", it) }

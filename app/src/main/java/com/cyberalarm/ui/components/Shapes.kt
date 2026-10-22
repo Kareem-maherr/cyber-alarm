@@ -75,14 +75,16 @@ fun hexagonPath(size: Size): Path = Path().apply {
 }
 
 /**
- * Cheap neon glow: the same stroke drawn a few times, wider and fainter. Avoids BlurMaskFilter,
- * which isn't hardware-accelerated below API 28 and is costly during animation.
+ * Single-weight HUD line with an optional soft halo (one faint wide stroke). The Night City
+ * language keeps borders calm: no multi-layer neon.
  */
 fun DrawScope.neonStroke(path: Path, color: Color, width: Float, glow: Boolean = true) {
-    if (glow) {
-        drawPath(path, color.copy(alpha = 0.06f), style = Stroke(width * 7))
-        drawPath(path, color.copy(alpha = 0.12f), style = Stroke(width * 4))
-        drawPath(path, color.copy(alpha = 0.25f), style = Stroke(width * 2))
-    }
+    if (glow) drawPath(path, color.copy(alpha = color.alpha * 0.10f), style = Stroke(width * 8))
     drawPath(path, color, style = Stroke(width))
 }
+
+/** Cut corners on one diagonal only (top-right + bottom-left): the Night City card silhouette. */
+fun diagonalCutPath(size: Size, cut: Float): Path = chamferPath(size, tl = 0f, tr = cut, br = 0f, bl = cut)
+
+/** Cut top-left + bottom-right: buttons, fields and keys. */
+fun buttonCutPath(size: Size, cut: Float): Path = chamferPath(size, tl = cut, tr = 0f, br = cut, bl = 0f)

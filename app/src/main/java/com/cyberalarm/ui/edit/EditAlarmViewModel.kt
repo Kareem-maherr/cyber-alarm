@@ -7,6 +7,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cyberalarm.alarm.AlarmScheduler
+import com.cyberalarm.cred.Rank
+import com.cyberalarm.cred.WakeTracker
 import com.cyberalarm.data.Alarm
 import com.cyberalarm.data.AlarmRepository
 import com.cyberalarm.lock.AppInfo
@@ -31,7 +33,10 @@ class EditAlarmViewModel @Inject constructor(
     private val repo: AlarmRepository,
     private val scheduler: AlarmScheduler,
     private val installedApps: InstalledApps,
+    tracker: WakeTracker,
 ) : ViewModel() {
+
+    val rank: StateFlow<Rank> = tracker.rank
 
     private val alarmId: Long = savedState.get<Long>(ARG_ALARM_ID) ?: -1L
     val isNew: Boolean = alarmId <= 0
@@ -54,7 +59,8 @@ class EditAlarmViewModel @Inject constructor(
     fun save(onDone: () -> Unit) {
         val alarm = _draft.value ?: return
         viewModelScope.launch {
-            val saved = repo.save(alarm.copy(enabled = true))
+            // A changed alarm forgets any pending "skip next".
+            val saved = repo.save(alarm.copy(enabled = true, skipAt = 0))
             scheduler.schedule(saved)
             onDone()
         }

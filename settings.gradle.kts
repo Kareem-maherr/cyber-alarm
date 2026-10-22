@@ -15,3 +15,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "CyberAlarm"
 include(":app")
+include(":wear")

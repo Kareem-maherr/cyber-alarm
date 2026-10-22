@@ -7,14 +7,9 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.media.AudioAttributes
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
-import android.os.VibrationAttributes
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
@@ -23,6 +18,7 @@ import com.cyberalarm.data.Alarm
 import com.cyberalarm.data.AlarmRepository
 import com.cyberalarm.enforcement.AlarmActivity
 import com.cyberalarm.enforcement.OverlayManager
+import com.cyberalarm.feedback.Haptics
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -53,8 +49,9 @@ class AlarmService : Service() {
     private var currentId = NO_ALARM
     private var watchdog: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
-    private var vibrator: Vibrator? = null
     private var lastLaunch = 0L
+    private var vibrateOn = false
+    private var quiet = false
 
     override fun onCreate() {
         super.onCreate()
@@ -91,8 +88,13 @@ class AlarmService : Service() {
             val alarm = withContext(Dispatchers.IO) { repo.get(alarmId) } ?: Alarm(id = alarmId, label = "ALARM")
             getSystemService(NotificationManager::class.java)
                 .notify(Notifications.ID_RINGING, buildNotification(alarmId, alarm.label))
-            player.start(alarm.soundUri)
-            if (alarm.vibrate) startVibration()
+            // Escalated re-ring (fell asleep after an awake check): no ramp, louder, always vibrating.
+            val escalated = store.escalation() > 0
+            player.start(alarm.soundUri, rampMillis = if (escalated) 0 else 30_000, streamFloor = if (escalated) 1f else 0.8f)
+            vibrateOn = alarm.vibrate || escalated
+            if (vibrateOn) Haptics.get(this@AlarmService).startAlarmPattern()
+            quiet = false
+            applySilence()
         }
         launchAlarmUi(force = true)
         startWatchdog(alarmId)
@@ -112,6 +114,7 @@ class AlarmService : Service() {
                     stopSelf()
                     break
                 }
+                applySilence()
                 if (!AlarmActivity.onScreen) {
                     overlay.showAlarmShield()
                     launchAlarmUi(force = false)
@@ -125,6 +128,21 @@ class AlarmService : Service() {
                 tick++
                 delay(1_000)
             }
+        }
+    }
+
+    /** Jack-in quiet window: pause sound + vibration while it lasts, resume when it runs out. */
+    private fun applySilence() {
+        val silenced = store.isSilenced()
+        if (silenced == quiet) return
+        quiet = silenced
+        val haptics = Haptics.get(this)
+        if (silenced) {
+            player.pause()
+            haptics.stopAlarmPattern()
+        } else {
+            player.resume()
+            if (vibrateOn) haptics.startAlarmPattern()
         }
     }
 
@@ -177,23 +195,6 @@ class AlarmService : Service() {
         lock.acquire(10 * 60_000L)
     }
 
-    private fun startVibration() {
-        val vib = if (Build.VERSION.SDK_INT >= 31) {
-            getSystemService(VibratorManager::class.java).defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            getSystemService(Vibrator::class.java)
-        }
-        val effect = VibrationEffect.createWaveform(longArrayOf(0, 700, 500), 0)
-        if (Build.VERSION.SDK_INT >= 33) {
-            vib.vibrate(effect, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_ALARM))
-        } else {
-            @Suppress("DEPRECATION")
-            vib.vibrate(effect, AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).build())
-        }
-        vibrator = vib
-    }
-
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
         store.activeAlarmId()?.let { scheduler.scheduleGuard(it, System.currentTimeMillis() + 1_000) }
@@ -202,7 +203,7 @@ class AlarmService : Service() {
     override fun onDestroy() {
         watchdog?.cancel()
         player.stop()
-        vibrator?.cancel()
+        Haptics.get(this).stopAlarmPattern()
         overlay.hide()
         wakeLock?.takeIf { it.isHeld }?.release()
         scope.cancel()

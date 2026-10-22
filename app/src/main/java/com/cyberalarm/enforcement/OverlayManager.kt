@@ -75,8 +75,8 @@ class OverlayManager @Inject constructor(
         return LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setBackgroundColor(Color.argb(0xF2, 0x05, 0x09, 0x0B))
-            addView(text("// INTRUSION BLOCKED //", 14f, Color.rgb(0xFF, 0x2A, 0x3D), false))
+            setBackgroundColor(Color.argb(0xF2, 0x04, 0x08, 0x0B))
+            addView(text("// NICE TRY, CHOOM //", 14f, Color.rgb(0xFF, 0x2A, 0x3D), false))
             addView(text("ALARM ACTIVE", 40f, yellow, true))
             addView(text("SOLVE THE CHALLENGE TO DISMISS", 14f, Color.rgb(0x00, 0xE5, 0xFF), false))
             addView(text("[ TAP TO RETURN ]", 16f, yellow, false))

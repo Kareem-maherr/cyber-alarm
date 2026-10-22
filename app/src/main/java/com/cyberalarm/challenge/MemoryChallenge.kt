@@ -2,7 +2,7 @@ package com.cyberalarm.challenge
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.clickable
+import com.cyberalarm.ui.components.hapticClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,16 +39,16 @@ class MemoryChallenge(override val spec: ChallengeSpec) : Challenge {
 }
 
 object MemoryRules {
-    fun gridSize(d: Difficulty) = if (d == Difficulty.HARD) 4 else 3
+    fun gridSize(d: Difficulty) = if (d >= Difficulty.HARD) 4 else 3
     fun length(d: Difficulty) = when (d) {
         Difficulty.EASY -> 4
         Difficulty.MEDIUM -> 5
-        Difficulty.HARD -> 7
+        Difficulty.HARD, Difficulty.LEGEND -> 7
     }
     fun flashMillis(d: Difficulty) = when (d) {
         Difficulty.EASY -> 650L
         Difficulty.MEDIUM -> 480L
-        Difficulty.HARD -> 340L
+        Difficulty.HARD, Difficulty.LEGEND -> 340L
     }
 
     /** No tile repeats twice in a row (that would be invisible as a "flash"). */
@@ -77,6 +77,7 @@ private fun MemoryUi(spec: ChallengeSpec, onPassed: () -> Unit) {
     var position by remember { mutableIntStateOf(0) }
     var rounds by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
+    val onMistake = LocalChallengeMistake.current
 
     LaunchedEffect(sequence, attempt) {
         phase = Phase.SHOW
@@ -108,6 +109,7 @@ private fun MemoryUi(spec: ChallengeSpec, onPassed: () -> Unit) {
             }
         } else {
             phase = Phase.FAIL
+            onMistake()
             scope.launch { delay(900); sequence = MemoryRules.sequence(d); attempt++ }
         }
     }
@@ -116,8 +118,8 @@ private fun MemoryUi(spec: ChallengeSpec, onPassed: () -> Unit) {
         val (text, color) = when (phase) {
             Phase.SHOW -> "OBSERVE SEQUENCE..." to Hud.Cyan
             Phase.INPUT -> "REPEAT // ${position}/${sequence.size}" to Hud.Yellow
-            Phase.FAIL -> "SEQUENCE CORRUPTED // RETRY" to Hud.Red
-            Phase.CLEAR -> "SEQUENCE ACCEPTED" to Hud.Yellow
+            Phase.FAIL -> "GONK MOVE // SEQUENCE CORRUPTED" to Hud.Red
+            Phase.CLEAR -> "PREEM // SEQUENCE ACCEPTED" to Hud.Yellow
         }
         Row {
             Text(text, style = HudType.small, color = color, modifier = Modifier.weight(1f))
@@ -150,7 +152,7 @@ private fun MemoryUi(spec: ChallengeSpec, onPassed: () -> Unit) {
                                         neonStroke(path, if (active) tile else Hud.Grey, 1.5.dp.toPx(), glow = active)
                                     }
                                 }
-                                .clickable(remember { MutableInteractionSource() }, null) { onTap(cell) },
+                                .hapticClickable(remember { MutableInteractionSource() }, null) { onTap(cell) },
                         )
                     }
                 }

@@ -40,17 +40,23 @@ class LockManager @Inject constructor(
         windows.value[pkg]?.isLocked(now) == true
 
     suspend fun startLocks(alarm: Alarm) {
-        if (alarm.lockedPackages.isEmpty() || alarm.lockMinutes <= 0) return
+        if (alarm.lockMinutes <= 0) return
+        lockUntil(alarm.lockedPackages, System.currentTimeMillis() + alarm.lockMinutes * 60_000L, alarm.id)
+    }
+
+    /** Night lock: [packages] stay locked from bedtime until the alarm rings at [until]. */
+    suspend fun lockUntil(packages: List<String>, until: Long, sourceAlarmId: Long) {
+        if (packages.isEmpty()) return
         val now = System.currentTimeMillis()
-        val until = now + alarm.lockMinutes * 60_000L
-        alarm.lockedPackages.forEach { pkg ->
-            val existing = dao.get(pkg)
+        packages.forEach { pkg ->
+            val existing = dao.get(pkg)?.takeIf { it.lockedUntil > now }
             dao.upsert(
                 LockWindow(
                     packageName = pkg,
                     lockedUntil = maxOf(existing?.lockedUntil ?: 0, until),
                     passUntil = 0,
-                    sourceAlarmId = alarm.id,
+                    sourceAlarmId = sourceAlarmId,
+                    lockedAt = existing?.lockedAt?.takeIf { it > 0 } ?: now,
                 ),
             )
         }

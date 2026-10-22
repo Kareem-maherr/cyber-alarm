@@ -13,6 +13,7 @@ import android.os.Build
 import android.os.PowerManager
 import android.os.Process
 import android.provider.Settings
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.cyberalarm.enforcement.CyberAccessibilityService
 
@@ -103,6 +104,27 @@ object Permissions {
                 PermissionTier.ENFORCER,
                 context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName),
                 settingsIntent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, pkgUri),
+            ),
+        )
+        if (Build.VERSION.SDK_INT >= 36) {
+            add(
+                PermissionItem(
+                    "live", "LIVE_UPDATES",
+                    "Shows the app-lock countdown as a live timer in the status bar chip and Samsung's Now Bar.",
+                    PermissionTier.OPTIONAL,
+                    NotificationManagerCompat.from(context).canPostPromotedNotifications(),
+                    settingsIntent = Intent(Settings.ACTION_APP_NOTIFICATION_PROMOTION_SETTINGS)
+                        .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
+                ),
+            )
+        }
+        add(
+            PermissionItem(
+                "camera", "CAMERA",
+                "Scans your QR / barcode jack-in point for the JACK_IN challenge. Frames are analysed on the phone and never stored.",
+                PermissionTier.OPTIONAL,
+                granted(context, Manifest.permission.CAMERA),
+                runtime = Manifest.permission.CAMERA,
             ),
         )
         val audio = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE

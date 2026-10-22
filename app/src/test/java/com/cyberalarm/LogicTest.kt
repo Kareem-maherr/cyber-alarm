@@ -1,6 +1,9 @@
 package com.cyberalarm
 
 import com.cyberalarm.alarm.NextTrigger
+import com.cyberalarm.challenge.BreachPuzzle
+import com.cyberalarm.challenge.BreachRules
+import com.cyberalarm.challenge.BreachState
 import com.cyberalarm.challenge.ChallengeSpec
 import com.cyberalarm.challenge.ChallengeType
 import com.cyberalarm.challenge.Connect4Ai
@@ -76,42 +79,60 @@ class ChallengeSpecTest {
 
 class MathTest {
     @Test
-    fun answersAreConsistent() {
+    fun additionOnly() {
         Difficulty.entries.forEach { d ->
             val gen = MathProblemGenerator(d, Random(7))
-            repeat(200) {
+            repeat(500) {
                 val p = gen.next()
-                val text = p.text.substringBefore("\n")
-                if ('x' in text) {
-                    // a·x + b = c
-                    val (lhs, c) = text.split(" = ")
-                    val a = lhs.substringBefore("x").toInt()
-                    val b = lhs.substringAfter("+ ").toInt()
-                    assertEquals(c.toInt(), a * p.answer + b)
-                } else {
-                    val expr = text.replace("×", "*").replace("−", "-")
-                    assertEquals(text, eval(expr), p.answer)
+                assertTrue(p.text, p.text.all { it.isDigit() || it == ' ' || it == '+' })
+                assertTrue("${p.text} -> ${p.answer}", p.answer > 0)
+                assertEquals(p.text, p.text.split(" + ").sumOf { it.toInt() }, p.answer)
+            }
+        }
+    }
+}
+
+class BreachTest {
+    @Test
+    fun generatedPuzzlesAreSolvableAlongThePlantedPath() {
+        Difficulty.entries.forEach { d ->
+            repeat(200) { seed ->
+                val rnd = Random(seed)
+                val cfg = BreachRules.config(d)
+                // Re-derive the same path the generator planted by replaying the RNG.
+                val puzzle = BreachRules.generate(d, Random(seed))
+                val path = BreachRules.solutionPath(cfg.size, cfg.targetLength, rnd)
+                var state = BreachState(puzzle)
+                path.forEach { cell ->
+                    assertTrue("illegal planted pick $cell", state.canPick(cell))
+                    state = state.pick(cell)
                 }
+                assertTrue(state.solved)
+                assertEquals(cfg.targetLength, state.progress)
             }
         }
     }
 
-    /** Tiny evaluator for "a op b [op c [op d]]" with * before +/-. */
-    private fun eval(expr: String): Int {
-        val tokens = expr.split(" ")
-        val terms = mutableListOf<Int>()
-        val ops = mutableListOf<String>()
-        var i = 0
-        var cur = tokens[0].toInt()
-        while (++i < tokens.size) {
-            val op = tokens[i]
-            val v = tokens[++i].toInt()
-            if (op == "*") cur *= v else { terms += cur; ops += op; cur = v }
-        }
-        terms += cur
-        var result = terms[0]
-        ops.forEachIndexed { k, op -> result = if (op == "+") result + terms[k + 1] else result - terms[k + 1] }
-        return result
+    @Test
+    fun picksAlternateRowThenColumnAndCannotReuseCells() {
+        val grid = List(25) { "1C" }
+        val state = BreachState(BreachPuzzle(5, grid, listOf("55", "55"), 6))
+        assertTrue(state.canPick(3)) // row 0
+        assertTrue(!state.canPick(5)) // row 1 is not active yet
+        val s1 = state.pick(3) // now column 3 is active
+        assertTrue(s1.canPick(3 + 5 * 2))
+        assertTrue(!s1.canPick(4))
+        assertTrue(!s1.canPick(3)) // used
+        val s2 = s1.pick(13) // row 2 active
+        assertTrue(s2.canPick(10) && !s2.canPick(8))
+    }
+
+    @Test
+    fun fullBufferWithoutSequenceFails() {
+        val grid = List(25) { "1C" }
+        var state = BreachState(BreachPuzzle(5, grid, listOf("55", "55"), 2))
+        state = state.pick(0).pick(5)
+        assertTrue(state.failed && !state.solved)
     }
 }
 
